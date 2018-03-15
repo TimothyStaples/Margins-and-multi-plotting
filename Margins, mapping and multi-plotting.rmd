@@ -1,6 +1,7 @@
 ---
 title: "Margins, Mapping and Multi-plotting"
-output: rmarkdown::github_document
+output:  html_document:
+              keep_md: true
 ---
 
 This document is a self-paced tutorial through some of the plotting tools provided in a base R installation. First, we'll cover how to handle margins, setting and controlling axes and other graphical parameters. Then we'll move onto including maps in base R plots, and finally we'll use a range of functions (from simple to complex) to design multi-plot figures.
