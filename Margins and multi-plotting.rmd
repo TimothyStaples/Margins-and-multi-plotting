@@ -1,6 +1,9 @@
 ---
-title: "Margins, Mapping and Multi-plotting"
-output:  github_document
+title: "Margins and Multi-plotting"
+output:
+  github_document:
+    toc: true
+    toc_depth: 2
 ---
 
 This document is a self-paced tutorial through some of the plotting tools provided in a base R installation. First, we'll cover how to handle margins, setting and controlling axes and other graphical parameters. Then we'll move onto including maps in base R plots, and finally we'll use a range of functions (from simple to complex) to design multi-plot figures.
@@ -230,7 +233,7 @@ par("usr")[1:2]
 
 So it turns out that R likes to add 4% on either side of what you specify as the axis limits. "?par()" doesn't tell you why, it just tells you that's called the 'regular' style.
 
-There is an altnerative, all we need to do is tell R we want to use 'internal' style axes instead, by setting xaxs and/or yaxs to "i".
+There is an alternative, all we need to do is tell R we want to use 'internal' style axes instead, by setting xaxs and/or yaxs to "i".
 
 ```{r, include=TRUE}
 plot(y ~ x, xlim=c(0,100), xaxs="i") # magic
@@ -352,6 +355,7 @@ legend(x=103, y=6000,  # now notice my x point is outside of my plot limits...
 Okay, enough with the mucking around - let's get multi-plotting. Let's start by generating some data. It's some simple site-level data with individuals of 3 species observed, with a 'size' measure for each individual.
 
 ```{r, include=TRUE}
+set.seed(10101)
 species.temp<-sample(1:3,1000, replace=TRUE)
 data<-data.frame(site=rep(1:10,100),
                  rainfall=rep(sample(100:1000, 10), 100),
@@ -378,3 +382,389 @@ with(data[data$species=="A",], plot(size ~ rainfall))
 plot(density(table(data$species, data$site)[1,], from=0))
 ```
 
+We also have 3 options to plot these things together, in order of increasing power and complexity:
+
+* setting up par(mfrow) or par(mfcol)
+* creating a layout() matrix
+* setting coordinates with split.screen()
+
+I'm going to use some Greek mythology to help you visualise the power and flexibility of these tools - don't be alarmed, but consider yourself warned.
+
+## mfrow & mfcol, The Hercules (Heracles?) of multi-plotting
+
+mfrow is a graphical parameter that creates a grid of rows and columns, so the total plot number is nrows x ncols.
+
+When we set our mfrow, we set the row number THEN column number. Alternatively you can set mfcol, but then the numbers are columns THEN rows
+
+```{r, include=TRUE}
+par(mfrow=c(2,3)) # par(mfcol=c(3,2))  (2 rows and 3 columns)
+
+boxplot(data$size ~ data$species)
+a<-sapply(c("A","B","C"), function(x){with(data[data$species==x,], plot(size ~ rainfall))})
+a<-sapply(c(1:2), function(x){plot(density(table(data$species, data$site)[x,], from=0))})
+```
+
+You can see that with default par settings, there's a lot of white space around our plots. Let's take a closer look at why and how we can manipulate it.
+
+```{r, include=TRUE}
+par(mfrow=c(2,3)) # par(mfcol=c(3,2))  (2 rows and 3 columns)
+
+a<-sapply(c(1:6), function(x){plot.new()
+                              box("outer", col="green") 
+                              box("figure", col="blue") 
+                              box("plot", col="red")
+                            })
+```
+
+In this case, our 'plot' space is really small, just inside the red boxes, and our figure space (outside the blue box) is really large. There is no outer space, as the blue boxes and green boxes overlap. With this knowledge, we can adjust the space between our plots by adjusting our margins.
+
+```{r, include=TRUE}
+par(mfrow=c(2,3), mar=c(2,2,1,1), oma=c(1,1,1,1))
+
+a<-sapply(c(1:6), function(x){plot.new()
+                              box("outer", col="green") 
+                              box("figure", col="blue") 
+                              box("plot", col="red")
+                             })
+```
+
+Now we've increased our plots space - I've also added a small outer margin, which you can see as the space between the blue and green boxes. Notice that this space goes around ALL the plots rather than around each individual plot - that's useful and important to remember. How, you ask?
+
+Well, what if you had the same axes for each plot and didn't want to have them on each plot individually? We can set our inner (red to blue) margins to 0, and just set outer margin (blue to green) with space for our axis labels etc.
+
+There's cleverer ways to do this, but I figured I'd run each plot individually so you can see how I suppress the axes.
+
+```{r, include=TRUE}
+par(mfrow=c(2,3), mar=c(0,0,0,0), oma=c(3,3,1,1))
+
+# plot 1 
+plot(x=x, y=sample(1:100,50), xaxt="n")
+
+# plot 2
+plot(x=x, y=sample(1:100,50), axes=F)
+box()
+
+# plot 3
+plot(x=x, y=sample(1:100,50), axes=F)
+box()
+
+# plot 4
+plot(x=x, y=sample(1:100,50))
+
+# plot 5
+plot(x=x, y=sample(1:100,50), yaxt="n")
+
+# plot 6
+plot(x=x, y=sample(1:100,50), yaxt="n")
+```
+
+## layout(), the Dionysis of multi-plotting
+
+Layout lets us allocate our plot space to multiple figures by creating a matrix with plot numbers. This overcomes the major limitation of mfrow and mfcol, which is that the plots are constrained to a matrix format with equal sizes. Here's how layout works, with a simple example:
+
+```{r, include=TRUE}
+layoutmat<-rbind(c(2,2), c(1,3)) # set up a 2x2 matrix with plot-space 
+# assigned to plots
+layout(layoutmat) # layout() assigns our matrix to the plot-space
+layout.show(3) 
+```
+
+R will assign plots to space based on the numbered order. 
+You can use layout.show() to see up how space is allocated up to a given plot number (we only have 3 plots, so we see all of them here). In this example layout, the bottom-left plot is plotted first, then the top plot, and finally the bottom-right plot. Before we start plotting let's look at how our margins look with layout.
+
+```{r, include=TRUE}
+par(mar=c(2,2,2,2), oma=c(1,1,1,1))
+
+layout(rbind(c(2,2), c(1,3)))
+
+a<-sapply(c(1:3), function(x){plot.new() # empty plot window
+  box("outer", col="green") 
+  box("figure", col="blue") 
+  box("plot", col="red")
+})
+```
+
+Again, plot and figure space is defined for each sub-plot, and the outer margin area is around ALL the plots, rather than each plot individually. Let's try a more advanced layout for some of our 'data' plots.
+
+```{r, include=TRUE}
+layoutmat<-rbind(c(1,1,2,5),
+                 c(1,1,3,6),
+                 c(1,1,4,7))
+
+layout(layoutmat)
+layout.show(7)
+```
+
+Once we run the layout() command, we can run through our plot code again (with layout sending the plots to each numbered section in sequence).
+
+```{r, include=TRUE}
+layout(rbind(c(1,1,2,5),
+             c(1,1,3,6),
+             c(1,1,4,7)))
+
+boxplot(data$size ~ data$species)
+a<-sapply(c("A","B","C"), function(x){(with(data[data$species==x,], plot(size ~ rainfall)))})
+a<-sapply(c(1:3), function(x){plot(density(table(data$species, data$site)[x,], from=0))})
+```
+
+This is looking better, but there's still some issues with white space. It'd be nice to be able to adjust our margins for each plot, especially for our scatter and density plots. Let's try adjusting our margins to give us white space only around the exterior
+
+```{r, include=TRUE}
+par(mar=c(0,0,0,0), oma=c(3,3,1,1))
+
+layout(rbind(c(1,1,2,5),
+             c(1,1,3,6),
+             c(1,1,4,7)))
+
+boxplot(data$size ~ data$species)
+
+a<-sapply(c("A","B","C"), function(x){(with(data[data$species==x,], plot(size ~ rainfall)))})
+a<-sapply(c(1:3), function(x){plot(density(table(data$species, data$site)[x,], from=0), main="")})
+```
+
+So that works a little bit, but now we don't have any white space between the interior plots. There's two solutions here. Option 1 is to reset our margins between each plot. Option two is to give layout a larger matrix with some plots we don't intend on filling.
+
+**Option one**
+
+```{r, include=TRUE}
+par(mar=c(0,0,0,0), oma=c(3,3,1,1))
+
+layout(rbind(c(1,1,2,5),
+             c(1,1,3,6),
+             c(1,1,4,7)))
+
+boxplot(data$size ~ data$species)
+
+par(mar=c(0,3,0,0)) # set inner margins to give us some left-hand white space
+a<-sapply(c("A","B","C"), function(x){(with(data[data$species==x,], plot(size ~ rainfall)))})
+a<-sapply(c(1:3), function(x){plot(density(table(data$species, data$site)[x,], from=0), main="")})
+```
+
+**Option two**
+
+Look at the new layout
+
+```{r, include=TRUE}
+layout(rbind(c(1,1,1,1,8,2,9,5),
+             c(1,1,1,1,8,3,9,6),
+             c(1,1,1,1,8,4,9,7)))
+
+layout.show(9)
+```
+
+We're only going to plot up to 7, which means our final plot will look like this:
+
+```{r, include=TRUE}
+layout(rbind(c(1,1,1,1,8,2,9,5),
+             c(1,1,1,1,8,3,9,6),
+             c(1,1,1,1,8,4,9,7)))
+
+layout.show(7)
+```
+
+And now with our data plots
+
+```{r, include=TRUE}
+layout(rbind(c(1,1,1,1,8,2,9,5),
+             c(1,1,1,1,8,3,9,6),
+             c(1,1,1,1,8,4,9,7)))
+
+par(mar=c(0,0,0,0), oma=c(3,3,1,1))
+boxplot(data$size ~ data$species)
+a<-sapply(c("A","B","C"), function(x){(with(data[data$species==x,], plot(size ~ rainfall)))})
+a<-sapply(c(1:3), function(x){plot(density(table(data$species, data$site)[x,], from=0), main="")})
+```
+
+It's up to you which solution you prefer. Both can be useful, although, if you're getting to this level of complexity, you may as well suck it up and start working with the most powerful multi-plotting tool that comes with base R: split.screen.
+
+## Split.screen, the Zeus of multi-plotting.
+
+Bias up front and center: I love split.screen. For publication-quality figures, I never use layout, and rarely use mfrow.
+
+Split.screen differs from mfrow() and layout() in that it lets us set actual coordinates for each of our sub-plots, by imagining our total figure space like this:
+
+```{r, include=TRUE}
+par(mar=c(0,0,0,0),oma=c(0,0,0,0))
+plot(x=NULL,y=NULL, xlab="", ylab="", xlim=c(0,1), ylim=c(0,1), tck=0.01, 
+     mgp=c(0,-2,0), las=1)
+```
+
+To use split.screen, we create a matrix like in layout, but instead of dividing
+the plot space up, the matrix has as many rows as we want plots, and always has four columns. In each column, we assign left, right, bottom and top coordinates for each plot. **These are in a different order to when we change margins**.
+
+* mar, oma order is: BOTTOM, LEFT, TOP, RIGHT (clockwise)
+* split.screen order is: LEFT, RIGHT, BOTTOM, TOP (x-boundaries, then y-boundaries)
+
+Split.screen has one more thing that makes it trickier to use than the others functions, as we actually have to 'call' each plot up as we plot it, then close it when we're done. It might
+sound confusing, but it actually works well logically, and let's anyone looking at your code see quickly where each plot starts and finishes.
+
+Let's give it a go. I'll code each plot ('screen') separately so you can see the syntax.
+
+```{r, include=TRUE}
+
+par(mar=c(1,1,1,1),oma=c(3,3,3,3))
+
+split.screen(rbind(c(0, 0.7, 0.3, 1),   # set up screen coordinates
+                  c(0, 0.35, 0, 0.3),     
+                  c(0.35, 0.7, 0, 0.3),   
+                  c(0.7, 1, 0.5, 1),      
+                  c(0.7, 1, 0, 0.5)))
+
+screen(1) # start screen 1 code
+plot.new()
+box("plot", col="red")
+box("figure", col="blue") 
+box("outer", col="green")
+text(x=0.5, y=0.5, labels=1)
+close.screen(1) # close screen
+
+screen(2)
+plot.new()
+box("plot", col="red")
+box("figure", col="blue") 
+box("outer", col="green")
+text(x=0.5, y=0.5, labels=2)
+close.screen(2)
+
+screen(3)
+plot.new()
+box("plot", col="red")
+box("figure", col="blue") 
+box("outer", col="green")
+text(x=0.5, y=0.5, labels=3)
+close.screen(3)
+
+screen(4)
+plot.new()
+box("plot", col="red")
+box("figure", col="blue") 
+box("outer", col="green")
+text(x=0.5, y=0.5, labels=4)
+close.screen(4)
+
+screen(5)
+plot.new()
+box("plot", col="red")
+box("figure", col="blue") 
+box("outer", col="green")
+text(x=0.5, y=0.5, labels=5)
+close.screen(5)
+
+close.screen(all.screens=TRUE) 
+```
+
+One thing you can notice that differs from mfrow() and layout() is that there are NO outer margins. You can change the oma argument above to anything you like and it won't plot any space between the blue and green lines!
+
+Another thing: split.screen remembers left-over screens. That's bad news, so in case you ever miss a screen, it's best to have use the line at the end of the last plotting code to mop up any leftover screens we forgot about.
+
+Now let's try plotting our example plots using splitscreen
+
+```{r, include=TRUE}
+par(mar=c(2,2,2,2))
+split.screen(rbind(c(0, 0.5, 0, 1),      
+                  c(0.5, 0.75, 0, 0.33),     
+                  c(0.5, 0.75, 0.33, 0.67),
+                  c(0.5, 0.75, 0.67, 1),
+                  c(0.75, 1, 0, 0.33),     
+                  c(0.75, 1, 0.33, 0.67),
+                  c(0.75, 1, 0.67, 1)))
+screen(1)
+boxplot(data$size ~ data$species)
+close.screen(1)
+
+a<-mapply(x=c("A","B","C"), y=2:4, function(x,y){
+  screen(y)
+  with(data[data$species==x,], plot(size ~ rainfall))
+  close.screen(y)})
+
+a<-mapply(x=c(1:3), y=5:7, function(x,y){
+  screen(y)
+  plot(density(table(data$species, data$site)[x,], from=0))
+  close.screen(y)})
+```
+
+So we're having issues with too much white space again, and we could solve this by calling par() after opening a screen() and setting specific margins - but we don't have to! Instead, we can just adjust our sub-plot coordinates to allow for some white space.
+
+```{r, include=TRUE}
+par(mar=c(0,0,0,0))    
+
+split.screen(rbind(c(0.1, 0.4, 0.1, 0.99),      
+                  c(0.5, 0.7, 0.1, 0.4),     
+                  c(0.5, 0.7, 0.4, 0.7),
+                  c(0.5, 0.7, 0.7, 0.99),
+                  c(0.8, 0.99, 0.1, 0.4),     
+                  c(0.8, 0.99, 0.4, 0.7),
+                  c(0.8, 0.99, 0.7, 0.99)))
+screen(1)
+boxplot(data$size ~ data$species)
+close.screen(1)
+
+a<-mapply(x=c("A","B","C"), y=2:4, function(x,y){
+  screen(y)
+  with(data[data$species==x,], plot(size ~ rainfall))
+  close.screen(y)})
+
+a<-mapply(x=c(1:3), y=5:7, function(x,y){
+  screen(y)
+  plot(density(table(data$species, data$site)[x,], from=0))
+  close.screen(y)})
+
+```
+
+Now I know the figure still looks ugly, so let's do some clean-up work and get things looking a little nicer. I've mostly just adjusted the axes as per the previous section, and added a splash of color. 
+
+```{r, include=TRUE}
+par(mar=c(0,0,0,0), oma=c(0,0,0,0), las=1, ps=8, mgp=c(3,0.25,0), tck=-0.01)                  
+split.screen(rbind(c(0.075, 0.4, 0.1, 0.95),      
+                  c(0.5, 0.7, 0.1, 0.375),     
+                  c(0.5, 0.7, 0.375, 0.675),
+                  c(0.5, 0.7, 0.675, 0.95),
+                  c(0.8, 0.99, 0.1, 0.375),     
+                  c(0.8, 0.99, 0.375, 0.675),
+                  c(0.8, 0.99, 0.675, 0.95)))
+
+screen(1)
+boxplot(data$size ~ data$species, col=c(rgb(1,0.7,0.7,1),
+                                        rgb(0.7,1,0.7,1), 
+                                        rgb(0.7,0.7,1,1)))
+mtext(side=2, las=3, text="Size (cm)", line=1.5, cex=1.25)
+close.screen(1)
+
+a<-mapply(x=c("A","B","C"), y=2:4, function(x,y){
+  screen(y)
+     with(data[data$species==x,], 
+       plot(size ~ rainfall, pch=16, axes=FALSE,
+            xlim=c(min(data$rainfall)-10, max(data$rainfall)+10),
+            ylim=c(min(data$size), max(data$size)+10),
+            col=c(rgb(1,0.7,0.7,1),rgb(0.7,1,0.7,1),rgb(0.7,0.7,1,1))[y-1]))
+     
+  if(y==2){axis(side=1);axis(side=2)}
+  
+  if(y!=2){axis(side=1, labels=NA);axis(side=2)}
+  box()
+  
+  close.screen(y)})
+
+a<-mapply(x=c(1:3), y=5:7, function(x,y){
+  screen(y)
+
+      plot(density(table(data$species, data$site)[x,], from=0), main="", axes=F,
+         ylim=c(0,0.22), xlim=c(0,50), type="n")
+      polygon(density(table(data$species, data$site)[x,], from=0), 
+              col=c(rgb(1,0.7,0.7,1),rgb(0.7,1,0.7,1),rgb(0.7,0.7,1,1))[y-4])
+
+    if(y==5){axis(side=1);axis(side=2)}
+    
+    if(y!=5){axis(side=1, labels=NA);axis(side=2)}
+    box()   
+   close.screen(y)})
+```
+
+This is the tip of the iceberg of what you can accomplish using these tools. I've tried to give you a simple overview of how these functions work, but to continue to use metaphors, the sky is the limit, the world is your oyster, and there are no cooks and an abundance of broth. Go forth and plot, my friends.
+
+**Credits**
+
+* Tim Staples, as Tim Staples
+* R Statistical Environment as R
+* split.screen as Zeus
+* Garry the blacksmith, for supplying all the axes - dammit Garry, I said ax-ees!
